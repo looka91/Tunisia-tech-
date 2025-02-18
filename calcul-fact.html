@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Facture - Ticket de Caisse</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f9f9f9;
+            color: #333;
+        }
+        .container {
+            max-width: 500px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: white;
+            border-radius: 10px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+        h1 {
+            text-align: center;
+            color: #4CAF50;
+            margin-bottom: 20px;
+        }
+        .input-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        input[type="number"], select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 14px;
+            box-sizing: border-box;
+        }
+        input[type="number"]:focus, select:focus {
+            outline: none;
+            border-color: #4CAF50;
+        }
+        button {
+            padding: 12px 20px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            width: 100%;
+            font-size: 16px;
+            transition: background-color 0.3s;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+
+        /* Styles pour l'impression */
+        @media print {
+            body {
+                margin: 0;
+                padding: 0;
+                font-size: 12px;
+            }
+            .container {
+                max-width: none;
+                padding: 0;
+                box-shadow: none;
+                margin: 0;
+            }
+            button {
+                display: none;
+            }
+        }
+
+        /* Ticket Styles */
+        .ticket {
+            font-family: monospace;
+            font-size: 14px;
+            line-height: 1.4;
+            width: 100%;
+            box-sizing: border-box;
+            margin: 0;
+            padding: 10px;
+            white-space: nowrap;
+            background-color: #f4f4f4;
+            border-radius: 10px;
+            border: 1px solid #ddd;
+        }
+        .ticket .header, .ticket .footer {
+            text-align: center;
+            font-weight: bold;
+            margin: 10px 0;
+        }
+        .ticket .line {
+            border-bottom: 1px dashed #333;
+            margin: 5px 0;
+        }
+        .ticket .section {
+            margin: 10px 0;
+        }
+        .ticket .item {
+            width: 100%;
+            display: flex;
+            justify-content: space-between;
+            font-size: 14px;
+        }
+        .ticket .item-price {
+            text-align: right;
+            width: 80px;
+        }
+        .ticket .total {
+            font-weight: bold;
+            margin-top: 10px;
+        }
+        .ticket .reduction {
+            font-style: italic;
+            color: red;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1>Calcul de la Facture - Ticket</h1>
+
+        <div class="input-group">
+            <label for="nbMenus">Nombre de menus :</label>
+            <input type="number" id="nbMenus" value="1" min="0">
+        </div>
+
+        <div class="input-group">
+            <label for="chorba">Chorba (6€) :</label>
+            <input type="number" id="chorba" value="0" min="0">
+        </div>
+        
+        <div class="input-group">
+            <label for="salade">Salade du jour (6€) :</label>
+            <input type="number" id="salade" value="0" min="0">
+        </div>
+        
+        <div class="input-group">
+            <label for="brik">Brik/Tajine tunisien (3€) :</label>
+            <input type="number" id="brik" value="0" min="0">
+        </div>
+        
+        <div class="input-group">
+            <label for="plat">Plat principal (10€) :</label>
+            <input type="number" id="plat" value="0" min="0">
+        </div>
+
+        <div class="input-group">
+            <label for="ville">Ville :</label>
+            <select id="ville">
+                <option value="Luxembourg-Ville">Luxembourg-Ville</option>
+                <option value="Esch-sur-Alzette">Esch-sur-Alzette</option>
+            </select>
+        </div>
+
+        <button onclick="calculerFacture()">Calculer la facture</button>
+
+        <div id="facture" class="ticket"></div>
+        
+        <button onclick="imprimerFacture()">Imprimer la facture</button>
+    </div>
+
+    <script>
+        const PRIX_MENU = 25;
+        const PRIX_CHORBA = 6;
+        const PRIX_SALADE = 6;
+        const PRIX_BRIK_TAJINE = 3;
+        const PRIX_PLAT_PRINCIPAL = 10;
+
+        const FRAIS_LIVRAISON_LUXEMBOURG = 3;
+        const FRAIS_LIVRAISON_LUXEMBOURG_GRATUIT = 0;
+        const FRAIS_LIVRAISON_ESCH = 3;
+        const FRAIS_LIVRAISON_ESCH_SANS_MENU = 6;
+
+        function calculerPrixMenus(nbMenus) {
+            let totalMenus = nbMenus * PRIX_MENU;
+            let reduction = 0;
+
+            if (nbMenus == 2) reduction = 3;
+            else if (nbMenus == 3) reduction = 4;
+            else if (nbMenus == 4) reduction = 5;
+            else if (nbMenus == 5) reduction = 15;
+
+            return { total: totalMenus - reduction, reduction };
+        }
+
+        function calculerPrixArticles() {
+            let totalArticles = 0;
+            let items = [];
+
+            const chorbaQty = parseInt(document.getElementById("chorba").value);
+            const saladeQty = parseInt(document.getElementById("salade").value);
+            const brikQty = parseInt(document.getElementById("brik").value);
+            const platQty = parseInt(document.getElementById("plat").value);
+
+            if (chorbaQty > 0) {
+                totalArticles += chorbaQty * PRIX_CHORBA;
+                items.push({ name: 'Chorba', qty: chorbaQty, price: PRIX_CHORBA, total: chorbaQty * PRIX_CHORBA });
+            }
+            if (saladeQty > 0) {
+                totalArticles += saladeQty * PRIX_SALADE;
+                items.push({ name: 'Salade', qty: saladeQty, price: PRIX_SALADE, total: saladeQty * PRIX_SALADE });
+            }
+            if (brikQty > 0) {
+                totalArticles += brikQty * PRIX_BRIK_TAJINE;
+                items.push({ name: 'Brik/Tajine', qty: brikQty, price: PRIX_BRIK_TAJINE, total: brikQty * PRIX_BRIK_TAJINE });
+            }
+            if (platQty > 0) {
+                totalArticles += platQty * PRIX_PLAT_PRINCIPAL;
+                items.push({ name: 'Plat principal', qty: platQty, price: PRIX_PLAT_PRINCIPAL, total: platQty * PRIX_PLAT_PRINCIPAL });
+            }
+
+            return { totalArticles, items };
+        }
+
+        function calculerFraisLivraison(ville, nbMenus) {
+            if (ville === "Luxembourg-Ville") {
+                return nbMenus > 0 ? FRAIS_LIVRAISON_LUXEMBOURG_GRATUIT : FRAIS_LIVRAISON_LUXEMBOURG;
+            } else if (ville === "Esch-sur-Alzette") {
+                return nbMenus > 0 ? FRAIS_LIVRAISON_ESCH : FRAIS_LIVRAISON_ESCH_SANS_MENU;
+            } else {
+                return 0;
+            }
+        }
+
+        function calculerFacture() {
+            let nbMenus = parseInt(document.getElementById("nbMenus").value);
+            let ville = document.getElementById("ville").value;
+            let { total: totalMenus, reduction } = calculerPrixMenus(nbMenus);
+            let { totalArticles, items } = calculerPrixArticles();
+            let fraisLivraison = calculerFraisLivraison(ville, nbMenus);
+
+            let totalFinal = totalMenus + totalArticles + fraisLivraison;
+
+            let factureHTML = `
+                <div class="header">
+                    <div>NOM RESTAURANT</div>
+                    <div>Téléphone: ici QR</div>
+                    <div>ADRESSE:</div>
+                    <div class="line"></div>
+                    <div>FACTURE</div>
+                    <div class="line"></div>
+                </div>
+                <div class="section">
+                    <div class="item">
+                        <span>Menus</span>
+                        <span class="item-price">25€ x ${nbMenus}</span>
+                    </div>
+                    <div class="item">
+                        <span>Réduction sur menus</span>
+                        <span class="item-price">-${reduction}€</span>
+                    </div>
+                    <div class="item">
+                        <span>Totale menus</span>
+                        <span class="item-price">${totalMenus}€</span>
+                    </div>
+                </div>
+            `;
+
+            if (items.length > 0) {
+                factureHTML += `
+                <div class="section">
+                    <div>Articles à la carte:</div>
+                    ${items.map(item => `
+                        <div class="item">
+                            <span>${item.name}</span>
+                            <span class="item-price">${item.price}€ x ${item.qty} ${item.total}€</span>
+                        </div>
+                    `).join('')}
+                    <div class="line"></div>
+                    <div class="item">
+                        <span>Livraison (${ville})</span>
+                        <span class="item-price">${fraisLivraison}€</span>
+                    </div>
+                </div>
+                `;
+            }
+
+            factureHTML += `
+                <div class="line"></div>
+                <div class="total">
+                    <span>Total à payer</span>
+                    <span class="item-price">${totalFinal}€</span>
+                </div>
+                <div class="line"></div>
+                <div class="footer">Merci de votre commande!</div>
+            `;
+
+            document.getElementById("facture").innerHTML = factureHTML;
+        }
+
+        function imprimerFacture() {
+            let facture = document.getElementById("facture").innerHTML;
+            let printWindow = window.open('', '', 'height=400,width=600');
+            printWindow.document.write('<html><head><title>Impression Facture</title>');
+            printWindow.document.write(`
+                <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f4f4f4;
+        }
+        .container {
+            max-width: 400px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: white;
+            border-radius: 10px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+        }
+        .ticket {
+            font-family: monospace;
+            font-size: 14px;
+            line-height: 1.4;
+            width: 100%;
+            box-sizing: border-box;
+            margin: 0;
+            padding: 10px;
+            white-space: nowrap;
+        }
+        .ticket .header, .ticket .footer {
+            text-align: center;
+            font-weight: bold;
+            margin: 10px 0;
+        }
+        .ticket .line {
+            border-bottom: 1px dashed #333;
+            margin: 5px 0;
+        }
+        .ticket .section {
+            margin: 10px 0;
+        }
+        .ticket .item {
+            width: 100%;
+            display: flex;
+            justify-content: space-between;
+            font-size: 14px;
+        }
+        .ticket .item-price {
+            text-align: right;
+            width: 80px;
+        }
+        .ticket .total {
+            font-weight: bold;
+            margin-top: 10px;
+        }
+        .ticket .reduction {
+            font-style: italic;
+            color: red;
+            margin-top: 10px;
+        }
+        button {
+            padding: 10px 20px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            cursor: pointer;
+            width: 100%;
+            margin-top: 20px;
+            font-size: 16px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }</style>
+            `);
+            printWindow.document.write('</head><body><div id="facture" class="ticket">');
+            printWindow.document.write(facture);
+            printWindow.document.write('</div></body></html>');
+            printWindow.document.close();
+            printWindow.print();
+        }
+    </script>
+
+</body>
+</html>
